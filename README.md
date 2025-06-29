@@ -1,5 +1,5 @@
 
-### 📈 5. Ethereum-Price-Forecasting-using-ARIMA – [YouTube Demo](https://youtu.be/ly0WtmLFs-w?si=UXBwlX9I66jpTZLo)
+### 📈 Ethereum-Price-Forecasting-using-ARIMA – [YouTube Demo](https://youtu.be/ly0WtmLFs-w?si=UXBwlX9I66jpTZLo)
 
 # 📉 Ethereum Price Forecasting with ARIMA
 
