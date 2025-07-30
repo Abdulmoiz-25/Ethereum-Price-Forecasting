@@ -43,7 +43,6 @@ streamlit run app.py
 ## 🌐 Live Demo
 
 👉 **Try the live app here:**  
-🔗 [https://ethereum-price-forecasting-uv4quyfvnccgmzwapadcox.streamlit.app/](https://ethereum-price-forecasting-uv4quyfvnccgmzwapadcox.streamlit.app/)
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ethereum-price-forecasting-uv4quyfvnccgmzwapadcox.streamlit.app/)
 
