@@ -12,14 +12,11 @@ from prophet import Prophet
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM
 import warnings
-import io
-import base64
 
 warnings.filterwarnings("ignore")
-
 st.set_page_config(page_title="Ethereum Forecasting App", layout="wide")
 
-# Sidebar: Model selection and controls
+# Sidebar
 with st.sidebar:
     st.title("Ethereum Forecast Settings")
     model_choice = st.selectbox("Select Forecasting Model", ["ARIMA", "Prophet", "LSTM"])
@@ -28,9 +25,7 @@ with st.sidebar:
     forecast_days = st.slider("Forecast Days", 7, 180, 30)
     section = st.radio("📄 Go to Section", ["Forecast", "EDA", "Model Summary"])
 
-# Data loading
 @st.cache_data
-
 def load_data(start, end):
     df = yf.download("ETH-USD", start=start, end=end)
     df = df[["Close"]].dropna()
@@ -41,8 +36,6 @@ def load_data(start, end):
 data = load_data(start_date, end_date)
 data["Close_diff"] = data["Close"].diff()
 data["Rolling_Mean"] = data["Close"].rolling(window=30).mean()
-
-# Helper functions for plotting
 
 def plot_series(title, series_dict):
     fig, ax = plt.subplots(figsize=(12, 5))
@@ -62,9 +55,8 @@ def export_forecast(df):
         key="download-forecast"
     )
 
-# ARIMA Model
+# ARIMA
 if model_choice == "ARIMA":
-    from statsmodels.tsa.arima.model import ARIMA
     p, d, q = 1, 1, 1
     train = data["Close"][:-forecast_days]
     test = data["Close"][-forecast_days:]
@@ -108,9 +100,10 @@ if model_choice == "ARIMA":
         st.title("ARIMA Summary")
         st.text(final_model.summary())
 
-# Prophet Model
+# Prophet
 elif model_choice == "Prophet":
-    df = data.reset_index().rename(columns={"Date": "ds", "Close": "y"})
+    df = data.reset_index().rename(columns={"index": "ds", "Close": "y"})
+    df['y'] = pd.to_numeric(df['y'], errors='coerce')
     model = Prophet(daily_seasonality=True)
     model.fit(df)
     future = model.make_future_dataframe(periods=forecast_days)
@@ -137,7 +130,7 @@ elif model_choice == "Prophet":
         fig2 = model.plot_components(forecast_df)
         st.pyplot(fig2)
 
-# LSTM Model
+# LSTM
 elif model_choice == "LSTM":
     scaler = MinMaxScaler()
     scaled = scaler.fit_transform(data[["Close"]])
