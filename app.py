@@ -103,9 +103,12 @@ if model_choice == "ARIMA":
 # Prophet
 elif model_choice == "Prophet":
     df = data.reset_index().rename(columns={"index": "ds", "Close": "y"})
-    df['y'] = pd.to_numeric(df['y'], errors='coerce')
+    df["ds"] = pd.to_datetime(df["ds"])
+    df["y"] = df["y"].astype(float)
+
     model = Prophet(daily_seasonality=True)
     model.fit(df)
+
     future = model.make_future_dataframe(periods=forecast_days)
     forecast_df = model.predict(future)
     forecast_df = forecast_df[["ds", "yhat", "yhat_lower", "yhat_upper"]]
