@@ -3,136 +3,185 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-from statsmodels.tsa.arima.model import ARIMA
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
+from prophet import Prophet
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, LSTM
 import warnings
+import io
+import base64
 
 warnings.filterwarnings("ignore")
 
 st.set_page_config(page_title="Ethereum Forecasting App", layout="wide")
 
-# Sidebar
+# Sidebar: Model selection and controls
 with st.sidebar:
-    st.title("Settings")
-    model_choice = st.selectbox("Select Model", ["ARIMA", "Prophet", "LSTM"])
+    st.title("Ethereum Forecast Settings")
+    model_choice = st.selectbox("Select Forecasting Model", ["ARIMA", "Prophet", "LSTM"])
     start_date = st.date_input("Start Date", pd.to_datetime("2020-01-01"))
     end_date = st.date_input("End Date", pd.to_datetime("2024-12-31"))
+    forecast_days = st.slider("Forecast Days", 7, 180, 30)
+    section = st.radio("📄 Go to Section", ["Forecast", "EDA", "Model Summary"])
 
-    forecast_days = st.slider("Forecast Days", 7, 365, 30)
-
-    if model_choice == "ARIMA":
-        st.markdown("Model Order (ARIMA p, d, q)")
-        p = st.slider("p (AR)", 0, 5, 1)
-        d = st.slider("d (Diff)", 0, 2, 1)
-        q = st.slider("q (MA)", 0, 5, 1)
-
-    section = st.radio("\ud83d\udccc Go to Section", ["\ud83d\udcc8 Forecast", "\ud83d\udcca EDA", "\ud83d\udcc3 Model Summary"])
-
+# Data loading
 @st.cache_data
+
 def load_data(start, end):
     df = yf.download("ETH-USD", start=start, end=end)
-    df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()
+    df = df[["Close"]].dropna()
     df.index = pd.to_datetime(df.index)
     df = df.asfreq("D").fillna(method="ffill")
     return df
 
-eth = load_data(start_date, end_date)
-eth["Close_diff"] = eth["Close"].diff()
-eth["Rolling_Mean"] = eth["Close"].rolling(window=30).mean()
+data = load_data(start_date, end_date)
+data["Close_diff"] = data["Close"].diff()
+data["Rolling_Mean"] = data["Close"].rolling(window=30).mean()
 
+# Helper functions for plotting
+
+def plot_series(title, series_dict):
+    fig, ax = plt.subplots(figsize=(12, 5))
+    for label, series in series_dict.items():
+        ax.plot(series, label=label)
+    ax.set_title(title)
+    ax.legend()
+    st.pyplot(fig)
+
+def export_forecast(df):
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "🔗 Download Forecast as CSV",
+        csv,
+        "forecast.csv",
+        "text/csv",
+        key="download-forecast"
+    )
+
+# ARIMA Model
 if model_choice == "ARIMA":
-    train = eth["Close"][:-forecast_days]
-    test = eth["Close"][-forecast_days:]
+    from statsmodels.tsa.arima.model import ARIMA
+    p, d, q = 1, 1, 1
+    train = data["Close"][:-forecast_days]
+    test = data["Close"][-forecast_days:]
     model = ARIMA(train, order=(p, d, q)).fit()
     forecast = model.forecast(steps=forecast_days)
     rmse = np.sqrt(mean_squared_error(test, forecast))
     mape = mean_absolute_percentage_error(test, forecast) * 100
-    final_model = ARIMA(eth["Close"], order=(p, d, q)).fit()
-    forecast_df = final_model.get_forecast(steps=forecast_days).summary_frame()
 
-    if section == "\ud83d\udcca EDA":
-        st.title(f"EDA - {model_choice} Model")
-        st.subheader("Raw ETH-USD Data")
-        st.dataframe(eth.tail())
+    final_model = ARIMA(data["Close"], order=(p, d, q)).fit()
+    future = final_model.get_forecast(steps=forecast_days)
+    forecast_df = future.summary_frame().reset_index()
+    forecast_df.rename(columns={"index": "Date", "mean": "Forecast"}, inplace=True)
 
-        st.subheader("Ethereum Closing Price")
-        fig1, ax1 = plt.subplots(figsize=(12, 5))
-        ax1.plot(eth["Close"], label="Close")
-        ax1.set_ylabel("Price (USD)")
-        st.pyplot(fig1)
+    if section == "Forecast":
+        st.title("ARIMA Forecast")
+        st.write(f"RMSE: {rmse:.2f}, MAPE: {mape:.2f}%")
+        plot_series("Actual vs Forecast", {"Actual": test, "Forecast": forecast})
+        plot_series("Ethereum Price Forecast", {
+            "Historical": data["Close"],
+            "Forecast": forecast_df.set_index("Date")["Forecast"]
+        })
+        export_forecast(forecast_df)
 
-        st.subheader("30-Day Rolling Mean")
-        fig2, ax2 = plt.subplots(figsize=(12, 5))
-        ax2.plot(eth["Close"], label="Close")
-        ax2.plot(eth["Rolling_Mean"], label="30-Day Mean")
-        ax2.legend()
-        st.pyplot(fig2)
+    elif section == "EDA":
+        st.title("ARIMA - Exploratory Data Analysis")
+        st.dataframe(data.tail())
+        plot_series("ETH Price with Rolling Mean", {
+            "Close": data["Close"],
+            "30-Day Mean": data["Rolling_Mean"]
+        })
+        adf_orig = adfuller(data["Close"].dropna())
+        adf_diff = adfuller(data["Close_diff"].dropna())
+        st.write(f"ADF Original: p={adf_orig[1]:.4f}")
+        st.write(f"ADF Differenced: p={adf_diff[1]:.4f}")
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 4))
+        plot_acf(data["Close_diff"].dropna(), lags=30, ax=ax1)
+        plot_pacf(data["Close_diff"].dropna(), lags=30, ax=ax2)
+        st.pyplot(fig)
 
-        def adf_test(series):
-            result = adfuller(series.dropna())
-            return result[0], result[1]
-
-        stat_orig, pval_orig = adf_test(eth["Close"])
-        stat_diff, pval_diff = adf_test(eth["Close_diff"])
-
-        st.subheader("ADF Stationarity Test")
-        st.write(f"Original Series: ADF = {stat_orig:.4f}, p-value = {pval_orig:.4f}")
-        st.write(f"Differenced Series: ADF = {stat_diff:.4f}, p-value = {pval_diff:.4f}")
-        st.markdown("✅ If p-value < 0.05, the series is stationary (suitable for ARIMA modeling).")
-
-        st.subheader("ACF & PACF Plots")
-        fig3, (ax3, ax4) = plt.subplots(1, 2, figsize=(14, 4))
-        plot_acf(eth["Close_diff"].dropna(), lags=30, ax=ax3)
-        plot_pacf(eth["Close_diff"].dropna(), lags=30, ax=ax4)
-        st.pyplot(fig3)
-
-    elif section == "\ud83d\udcc8 Forecast":
-        st.title(f"Forecast - {model_choice} Model")
-
-        st.subheader("Model Evaluation")
-        st.write(f"RMSE: {rmse:.2f}")
-        st.write(f"MAPE: {mape:.2f}%")
-
-        st.subheader("Actual vs Forecast")
-        fig4, ax5 = plt.subplots(figsize=(12, 5))
-        ax5.plot(test.index, test, label="Actual")
-        ax5.plot(test.index, forecast, label="Forecast")
-        ax5.legend()
-        st.pyplot(fig4)
-
-        st.subheader(f"Forecasting Next {forecast_days} Days")
-        fig5, ax6 = plt.subplots(figsize=(12, 5))
-        ax6.plot(eth["Close"], label="Historical")
-        ax6.plot(forecast_df["mean"], label="Forecast", color="green")
-        ax6.fill_between(
-            forecast_df.index,
-            forecast_df["mean_ci_lower"],
-            forecast_df["mean_ci_upper"],
-            alpha=0.3,
-            color="green",
-        )
-        ax6.set_title("Ethereum Forecast")
-        ax6.legend()
-        st.pyplot(fig5)
-
-        st.success("Forecast Complete")
-
-        st.subheader("Export Forecast Data")
-        export_df = forecast_df.copy()
-        export_df.reset_index(inplace=True)
-        export_df.rename(columns={"index": "Date"}, inplace=True)
-        csv = export_df.to_csv(index=False)
-        st.download_button(
-            label="Download Forecast as CSV",
-            data=csv,
-            file_name="ethereum_forecast.csv",
-            mime="text/csv",
-        )
-
-    elif section == "\ud83d\udcc3 Model Summary":
-        st.title(f"Model Summary - {model_choice}")
+    elif section == "Model Summary":
+        st.title("ARIMA Summary")
         st.text(final_model.summary())
 
-# Placeholder for Prophet and LSTM logic to be integrated similarly
+# Prophet Model
+elif model_choice == "Prophet":
+    df = data.reset_index().rename(columns={"Date": "ds", "Close": "y"})
+    model = Prophet(daily_seasonality=True)
+    model.fit(df)
+    future = model.make_future_dataframe(periods=forecast_days)
+    forecast_df = model.predict(future)
+    forecast_df = forecast_df[["ds", "yhat", "yhat_lower", "yhat_upper"]]
+    forecast_df.rename(columns={"ds": "Date", "yhat": "Forecast"}, inplace=True)
+
+    if section == "Forecast":
+        st.title("Prophet Forecast")
+        fig1 = model.plot(forecast_df)
+        st.pyplot(fig1)
+        export_forecast(forecast_df.tail(forecast_days))
+
+    elif section == "EDA":
+        st.title("Prophet - EDA")
+        st.dataframe(data.tail())
+        plot_series("Close vs Rolling Mean", {
+            "Close": data["Close"],
+            "Rolling Mean": data["Rolling_Mean"]
+        })
+
+    elif section == "Model Summary":
+        st.title("Prophet - Components")
+        fig2 = model.plot_components(forecast_df)
+        st.pyplot(fig2)
+
+# LSTM Model
+elif model_choice == "LSTM":
+    scaler = MinMaxScaler()
+    scaled = scaler.fit_transform(data[["Close"]])
+    X, y = [], []
+    for i in range(60, len(scaled)):
+        X.append(scaled[i - 60:i, 0])
+        y.append(scaled[i, 0])
+    X, y = np.array(X), np.array(y)
+    X = X.reshape((X.shape[0], X.shape[1], 1))
+
+    model = Sequential()
+    model.add(LSTM(50, return_sequences=True, input_shape=(X.shape[1], 1)))
+    model.add(LSTM(50))
+    model.add(Dense(1))
+    model.compile(optimizer='adam', loss='mse')
+    model.fit(X, y, epochs=5, batch_size=32, verbose=0)
+
+    input_seq = scaled[-60:].reshape(1, 60, 1)
+    future_preds = []
+    for _ in range(forecast_days):
+        pred = model.predict(input_seq)[0, 0]
+        future_preds.append(pred)
+        input_seq = np.append(input_seq[:, 1:, :], [[[pred]]], axis=1)
+
+    forecast_values = scaler.inverse_transform(np.array(future_preds).reshape(-1, 1)).flatten()
+    future_dates = pd.date_range(start=data.index[-1] + pd.Timedelta(days=1), periods=forecast_days)
+    forecast_df = pd.DataFrame({"Date": future_dates, "Forecast": forecast_values})
+
+    if section == "Forecast":
+        st.title("LSTM Forecast")
+        plot_series("Ethereum Forecast", {
+            "Historical": data["Close"],
+            "Forecast": forecast_df.set_index("Date")["Forecast"]
+        })
+        export_forecast(forecast_df)
+
+    elif section == "EDA":
+        st.title("LSTM - EDA")
+        st.dataframe(data.tail())
+        plot_series("Close & Rolling Mean", {
+            "Close": data["Close"],
+            "Rolling Mean": data["Rolling_Mean"]
+        })
+
+    elif section == "Model Summary":
+        st.title("LSTM Summary")
+        st.text("LSTM with 2 layers, trained on last 60 days windows.")
