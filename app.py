@@ -102,27 +102,21 @@ if model_choice == "ARIMA":
 
 # Prophet
 elif model_choice == "Prophet":
-    # Step 1: Prepare the DataFrame correctly
-    df = data.reset_index()  # index becomes a column named 'index'
-    df.columns = ["ds", "y"]  # Rename for Prophet
-    df["ds"] = pd.to_datetime(df["ds"])  # Ensure datetime
-    df["y"] = pd.to_numeric(df["y"], errors="coerce")  # Ensure float
+    df = data.reset_index()[["Date", "Close"]]  # Ensure both columns are selected
+    df.columns = ["ds", "y"]  # Now safe to rename
 
-    # Step 2: Drop NaN values just in case
+    df["ds"] = pd.to_datetime(df["ds"])
+    df["y"] = pd.to_numeric(df["y"], errors="coerce")
     df.dropna(inplace=True)
 
-    # Step 3: Fit the Prophet model
     model = Prophet(daily_seasonality=True)
     model.fit(df)
 
-    # Step 4: Forecast into the future
     future = model.make_future_dataframe(periods=forecast_days)
     forecast_df = model.predict(future)
-
     forecast_df = forecast_df[["ds", "yhat", "yhat_lower", "yhat_upper"]]
     forecast_df.rename(columns={"ds": "Date", "yhat": "Forecast"}, inplace=True)
 
-    # Step 5: Display the section
     if section == "Forecast":
         st.title("Prophet Forecast")
         fig1 = model.plot(forecast_df)
@@ -141,6 +135,7 @@ elif model_choice == "Prophet":
         st.title("Prophet - Components")
         fig2 = model.plot_components(forecast_df)
         st.pyplot(fig2)
+
 
 
 # LSTM
