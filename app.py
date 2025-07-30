@@ -102,7 +102,9 @@ if model_choice == "ARIMA":
 
 # Prophet
 elif model_choice == "Prophet":
-    df = data.reset_index().rename(columns={"index": "ds", "Close": "y"})
+    df = data.copy()
+    df["ds"] = df.index
+    df = df[["ds", "Close"]].rename(columns={"Close": "y"})
     df["ds"] = pd.to_datetime(df["ds"])
     df["y"] = df["y"].astype(float)
 
