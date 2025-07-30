@@ -11,15 +11,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-# Hide default Streamlit sidebar toggle
-hide_sidebar_toggle = """
-    <style>
-        [data-testid="collapsedControl"] {
-            display: none;
-        }
-    </style>
-"""
-st.markdown(hide_sidebar_toggle, unsafe_allow_html=True)
+# ⛔️ Removed CSS that hides the sidebar toggle
 
 st.set_page_config(page_title="Ethereum ARIMA Forecast", layout="wide")
 
