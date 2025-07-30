@@ -6,3 +6,4 @@ prophet
 scikit-learn
 matplotlib
 tensorflow
+statsmodels
