@@ -1,20 +1,57 @@
+# 🚀 Ethereum Price Forecasting App
 
-### 📈 Ethereum-Price-Forecasting-using-ARIMA – [YouTube Demo](https://youtu.be/ly0WtmLFs-w?si=UXBwlX9I66jpTZLo)
+This Streamlit app forecasts Ethereum (ETH-USD) prices using three advanced models:
 
-# 📉 Ethereum Price Forecasting with ARIMA
+- **ARIMA** — Autoregressive Integrated Moving Average (Statistical)
+- **Prophet** — Facebook's open-source forecasting library
+- **LSTM** — Long Short-Term Memory (Deep Learning)
 
-Time Series forecasting of ETH/USDT using the ARIMA statistical model. Data was taken from Binance using Python and analyzed for future predictions.
+---
 
-## 📽️ Demo
-▶️ [Watch Video](https://youtu.be/ly0WtmLFs-w?si=UXBwlX9I66jpTZLo)
+## 🔍 Features
 
-## 🧾 Features
-- Time series preprocessing
-- Auto ARIMA model tuning
-- Forecast visualization
+- 📊 Interactive Exploratory Data Analysis (EDA)
+- 🧠 Forecast Ethereum price using ARIMA, Prophet, or LSTM
+- 📈 Visual comparison of historical vs. predicted prices
+- 📅 Select custom date ranges and forecast durations
+- 📥 Export forecast results to CSV
 
-## ▶️ Run
+---
+
+## ⚙️ Installation
+
 ```bash
-git clone https://github.com/Abdulmoiz-25/Ethereum-Price-Forecasting-using-ARIMA.git
-cd Ethereum-Price-Forecasting-using-ARIMA
-jupyter notebook
+git clone https://github.com/yourusername/ethereum-price-forecasting-app.git
+cd ethereum-price-forecasting-app
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+---
+
+## 📦 Requirements
+
+- `streamlit`
+- `yfinance`
+- `pandas`, `numpy`, `matplotlib`
+- `statsmodels`, `prophet`
+- `tensorflow`
+- `scikit-learn`
+
+---
+
+## 🌐 Live Demo
+
+👉 **Try the live app here:**  
+🔗 [https://ethereum-price-forecasting-uv4quyfvnccgmzwapadcox.streamlit.app/](https://ethereum-price-forecasting-uv4quyfvnccgmzwapadcox.streamlit.app/)
+
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ethereum-price-forecasting-uv4quyfvnccgmzwapadcox.streamlit.app/)
+
+---
+
+
+## 👨‍💻 Author
+
+**Abdul Moiz Meer**  
+🔗 [LinkedIn](https://www.linkedin.com/in/yourprofile)  
+
