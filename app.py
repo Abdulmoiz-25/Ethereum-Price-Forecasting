@@ -38,6 +38,16 @@ def load_data(start, end):
     return df
 
 data = load_data(start_date, end_date)
+
+# Data validation
+if len(data) < 50:
+    st.error(f"Not enough data points ({len(data)}). Please select a longer date range. Minimum 50 data points required.")
+    st.stop()
+
+if forecast_days >= len(data):
+    st.error(f"Forecast days ({forecast_days}) cannot be greater than or equal to available data points ({len(data)}). Please reduce forecast days.")
+    st.stop()
+
 data["Close_diff"] = data["Close"].diff()
 data["Rolling_Mean"] = data["Close"].rolling(window=30).mean()
 
@@ -62,16 +72,34 @@ def export_forecast(df):
 # ARIMA
 if model_choice == "ARIMA":
     p, d, q = 1, 1, 1
+    
+    # Ensure we have enough data for train/test split
+    min_train_size = max(50, forecast_days + 30)  # At least 50 points or forecast_days + 30
+    
+    if len(data) < min_train_size:
+        st.error(f"Not enough data for ARIMA model. Need at least {min_train_size} data points, but only have {len(data)}.")
+        st.stop()
+    
     train = data["Close"][:-forecast_days]
     test = data["Close"][-forecast_days:]
-    model = ARIMA(train, order=(p, d, q)).fit()
-    forecast = model.forecast(steps=forecast_days)
-    rmse = np.sqrt(mean_squared_error(test, forecast))
-    mape = mean_absolute_percentage_error(test, forecast) * 100
-    final_model = ARIMA(data["Close"], order=(p, d, q)).fit()
-    future = final_model.get_forecast(steps=forecast_days)
-    forecast_df = future.summary_frame().reset_index()
-    forecast_df.rename(columns={"index": "Date", "mean": "Forecast"}, inplace=True)
+    
+    # Additional validation
+    if len(train) < 30:
+        st.error(f"Training data too small ({len(train)} points). Please reduce forecast days or increase date range.")
+        st.stop()
+    
+    try:
+        model = ARIMA(train, order=(p, d, q)).fit()
+        forecast = model.forecast(steps=forecast_days)
+        rmse = np.sqrt(mean_squared_error(test, forecast))
+        mape = mean_absolute_percentage_error(test, forecast) * 100
+        final_model = ARIMA(data["Close"], order=(p, d, q)).fit()
+        future = final_model.get_forecast(steps=forecast_days)
+        forecast_df = future.summary_frame().reset_index()
+        forecast_df.rename(columns={"index": "Date", "mean": "Forecast"}, inplace=True)
+    except Exception as e:
+        st.error(f"ARIMA model failed to fit. Try adjusting the date range or forecast days. Error: {str(e)}")
+        st.stop()
 
     if section == "Forecast":
         st.title("ARIMA Forecast")
@@ -137,6 +165,11 @@ elif model_choice == "Prophet":
 
 # LSTM
 elif model_choice == "LSTM":
+    # LSTM needs at least 60 data points for the lookback window
+    if len(data) < 120:  # 60 for lookback + some for training
+        st.error(f"Not enough data for LSTM model. Need at least 120 data points, but only have {len(data)}.")
+        st.stop()
+    
     scaler = MinMaxScaler()
     scaled = scaler.fit_transform(data[["Close"]])
     X, y = [], []
@@ -144,6 +177,11 @@ elif model_choice == "LSTM":
         X.append(scaled[i - 60:i, 0])
         y.append(scaled[i, 0])
     X, y = np.array(X), np.array(y)
+    
+    if len(X) == 0:
+        st.error("Not enough data to create training sequences for LSTM. Please increase the date range.")
+        st.stop()
+    
     X = X.reshape((X.shape[0], X.shape[1], 1))
 
     model = Sequential()
