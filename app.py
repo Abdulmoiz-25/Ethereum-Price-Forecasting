@@ -12,8 +12,8 @@ from prophet import Prophet
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM
 import warnings
-
 warnings.filterwarnings("ignore")
+
 st.set_page_config(page_title="Ethereum Forecasting App", layout="wide")
 
 # Sidebar
@@ -64,7 +64,6 @@ if model_choice == "ARIMA":
     forecast = model.forecast(steps=forecast_days)
     rmse = np.sqrt(mean_squared_error(test, forecast))
     mape = mean_absolute_percentage_error(test, forecast) * 100
-
     final_model = ARIMA(data["Close"], order=(p, d, q)).fit()
     future = final_model.get_forecast(steps=forecast_days)
     forecast_df = future.summary_frame().reset_index()
@@ -79,7 +78,6 @@ if model_choice == "ARIMA":
             "Forecast": forecast_df.set_index("Date")["Forecast"]
         })
         export_forecast(forecast_df)
-
     elif section == "EDA":
         st.title("ARIMA - Exploratory Data Analysis")
         st.dataframe(data.tail())
@@ -95,7 +93,6 @@ if model_choice == "ARIMA":
         plot_acf(data["Close_diff"].dropna(), lags=30, ax=ax1)
         plot_pacf(data["Close_diff"].dropna(), lags=30, ax=ax2)
         st.pyplot(fig)
-
     elif section == "Model Summary":
         st.title("ARIMA Summary")
         st.text(final_model.summary())
@@ -104,25 +101,24 @@ if model_choice == "ARIMA":
 elif model_choice == "Prophet":
     df = data.reset_index()[["Date", "Close"]]  # Ensure both columns are selected
     df.columns = ["ds", "y"]  # Now safe to rename
-
     df["ds"] = pd.to_datetime(df["ds"])
     df["y"] = pd.to_numeric(df["y"], errors="coerce")
     df.dropna(inplace=True)
 
     model = Prophet(daily_seasonality=True)
     model.fit(df)
-
     future = model.make_future_dataframe(periods=forecast_days)
-    forecast_df = model.predict(future)
-    forecast_df = forecast_df[["ds", "yhat", "yhat_lower", "yhat_upper"]]
-    forecast_df.rename(columns={"ds": "Date", "yhat": "Forecast"}, inplace=True)
+    forecast = model.predict(future)  # Keep original forecast with Prophet column names
+    
+    # Create a copy for export with renamed columns
+    forecast_df_export = forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].copy()
+    forecast_df_export.rename(columns={"ds": "Date", "yhat": "Forecast"}, inplace=True)
 
     if section == "Forecast":
         st.title("Prophet Forecast")
-        fig1 = model.plot(forecast_df)
+        fig1 = model.plot(forecast)  # Use original forecast with Prophet column names
         st.pyplot(fig1)
-        export_forecast(forecast_df.tail(forecast_days))
-
+        export_forecast(forecast_df_export.tail(forecast_days))
     elif section == "EDA":
         st.title("Prophet - EDA")
         st.dataframe(data.tail())
@@ -130,13 +126,10 @@ elif model_choice == "Prophet":
             "Close": data["Close"],
             "Rolling Mean": data["Rolling_Mean"]
         })
-
     elif section == "Model Summary":
         st.title("Prophet - Components")
-        fig2 = model.plot_components(forecast_df)
+        fig2 = model.plot_components(forecast)  # Use original forecast
         st.pyplot(fig2)
-
-
 
 # LSTM
 elif model_choice == "LSTM":
@@ -174,7 +167,6 @@ elif model_choice == "LSTM":
             "Forecast": forecast_df.set_index("Date")["Forecast"]
         })
         export_forecast(forecast_df)
-
     elif section == "EDA":
         st.title("LSTM - EDA")
         st.dataframe(data.tail())
@@ -182,7 +174,6 @@ elif model_choice == "LSTM":
             "Close": data["Close"],
             "Rolling Mean": data["Rolling_Mean"]
         })
-
     elif section == "Model Summary":
         st.title("LSTM Summary")
         st.text("LSTM with 2 layers, trained on last 60 days windows.")
