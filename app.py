@@ -19,11 +19,11 @@ st.set_page_config(page_title="Ethereum Forecasting App", layout="wide")
 # Sidebar
 with st.sidebar:
     model_choice = st.selectbox("Select Forecasting Model", ["ARIMA", "Prophet", "LSTM"])
+    st.title(f"{model_choice} Forecast Settings")
     start_date = st.date_input("Start Date", pd.to_datetime("2020-01-01"))
     end_date = st.date_input("End Date", pd.to_datetime("2024-12-31"))
     forecast_days = st.slider("Forecast Days", 7, 180, 30)
     section = st.radio("📄 Go to Section", ["Forecast", "EDA", "Model Summary"])
-    st.title(f"{model_choice} Forecast Settings")
 
 @st.cache_data
 def load_data(start, end):
