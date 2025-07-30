@@ -16,6 +16,10 @@ warnings.filterwarnings("ignore")
 
 st.set_page_config(page_title="Ethereum Forecasting App", layout="wide")
 
+# Main App Title
+st.title("🚀 Ethereum Forecast App")
+st.markdown("---")
+
 # Sidebar
 with st.sidebar:
     model_choice = st.selectbox("Select Forecasting Model", ["ARIMA", "Prophet", "LSTM"])
