@@ -3,126 +3,117 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import statsmodels.api as sm
+from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
 import warnings
+warnings.filterwarnings('ignore')
 
-warnings.filterwarnings("ignore")
+# Hide Streamlit sidebar toggle icon
+st.markdown("""
+    <style>
+        [data-testid="collapsedControl"] {
+            display: none;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-st.set_page_config(page_title="Ethereum ARIMA Forecast", layout="wide")
-
-# Title
-st.title("📈 Ethereum (ETH/USD) Price Forecast Using ARIMA")
-
-# Sidebar
+# Sidebar navigation
 with st.sidebar:
-    st.header("Settings")
-    start_date = st.date_input("Start Date", pd.to_datetime("2020-01-01"))
-    end_date = st.date_input("End Date", pd.to_datetime("2024-12-31"))
-    st.markdown("Model Order (ARIMA p, d, q)")
-    p = st.slider("p (AR term)", 0, 5, 1)
-    d = st.slider("d (differencing)", 0, 2, 1)
-    q = st.slider("q (MA term)", 0, 5, 1)
-    forecast_days = st.slider("Forecast days", 7, 90, 30)
+    st.title("🔍 Navigation")
+    show_section = st.radio("Go to", ["📈 Forecast", "📊 EDA", "📃 Model Summary"])
 
-# Load data
+# Load Ethereum data
 @st.cache_data
-def load_data(start, end):
-    df = yf.download("ETH-USD", start=start, end=end)
-    df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()
-    df.index = pd.to_datetime(df.index)
-    df = df.asfreq("D").fillna(method="ffill")
-    return df
+def load_data():
+    eth = yf.download('ETH-USD', start='2020-01-01', end='2024-12-31')
+    eth = eth[['Open', 'High', 'Low', 'Close', 'Volume']].dropna()
+    eth.index = pd.to_datetime(eth.index)
+    eth = eth.asfreq('D').fillna(method='ffill')
+    return eth
 
-eth = load_data(start_date, end_date)
+eth = load_data()
 
-st.subheader("Raw ETH-USD Data")
-st.dataframe(eth.tail())
+# Section 1: EDA
+if show_section == "📊 EDA":
+    st.header("📊 Exploratory Data Analysis")
+    
+    st.subheader("Closing Price")
+    fig, ax = plt.subplots(figsize=(14, 5))
+    eth['Close'].plot(ax=ax, title='Ethereum Closing Price')
+    st.pyplot(fig)
 
-# Plot Close Price
-st.subheader("Ethereum Closing Price")
-fig1, ax1 = plt.subplots(figsize=(12, 5))
-ax1.plot(eth["Close"], label="Close")
-ax1.set_ylabel("Price (USD)")
-ax1.set_title("ETH Closing Price")
-st.pyplot(fig1)
+    st.subheader("30-Day Rolling Mean")
+    eth['Rolling_Mean'] = eth['Close'].rolling(window=30).mean()
+    fig, ax = plt.subplots(figsize=(14, 5))
+    eth[['Close', 'Rolling_Mean']].plot(ax=ax, title='30-Day Rolling Mean')
+    st.pyplot(fig)
 
-# Rolling Mean
-eth["Rolling_Mean"] = eth["Close"].rolling(window=30).mean()
-st.subheader("30-Day Rolling Mean")
-fig2, ax2 = plt.subplots(figsize=(12, 5))
-ax2.plot(eth["Close"], label="Close")
-ax2.plot(eth["Rolling_Mean"], label="30-Day Mean")
-ax2.legend()
-st.pyplot(fig2)
+    st.subheader("Trading Volume")
+    fig, ax = plt.subplots(figsize=(14, 5))
+    eth['Volume'].plot(ax=ax, title='Ethereum Trading Volume')
+    st.pyplot(fig)
 
-# Stationarity Test
-def adf_test(series):
-    result = adfuller(series.dropna())
-    return result[0], result[1]
+    st.subheader("Basic Statistics")
+    st.dataframe(eth.describe())
 
-stat_orig, pval_orig = adf_test(eth["Close"])
-eth["Close_diff"] = eth["Close"].diff()
-stat_diff, pval_diff = adf_test(eth["Close_diff"])
+# Section 2: Forecast
+elif show_section == "📈 Forecast":
+    st.header("📈 Ethereum Price Forecast (ARIMA)")
 
-st.subheader("ADF Stationarity Test")
-st.write(f"**Original Series**: ADF = {stat_orig:.4f}, p-value = {pval_orig:.4f}")
-st.write(f"**Differenced Series**: ADF = {stat_diff:.4f}, p-value = {pval_diff:.4f}")
-st.markdown(
-    "✅ If p-value < 0.05, the series is stationary (good for ARIMA modeling)."
-)
+    st.subheader("Stationarity Check (ADF Test)")
+    def adf_test(series):
+        result = adfuller(series.dropna())
+        return result[0], result[1]
 
-# ACF & PACF
-st.subheader("ACF & PACF Plots (Differenced Series)")
-fig3, (ax3, ax4) = plt.subplots(1, 2, figsize=(14, 4))
-plot_acf(eth["Close_diff"].dropna(), lags=30, ax=ax3)
-plot_pacf(eth["Close_diff"].dropna(), lags=30, ax=ax4)
-st.pyplot(fig3)
+    adf_stat, p_val = adf_test(eth['Close'])
+    st.write(f"ADF Statistic: {adf_stat:.4f}")
+    st.write(f"p-value: {p_val:.4f}")
+    st.write("✅ Data is stationary" if p_val <= 0.05 else "⚠️ Data is non-stationary")
 
-# Train/Test Split
-train = eth["Close"][:-forecast_days]
-test = eth["Close"][-forecast_days:]
+    st.subheader("ACF and PACF")
+    fig1 = plot_acf(eth['Close'].diff().dropna(), lags=30)
+    st.pyplot(fig1.figure)
+    fig2 = plot_pacf(eth['Close'].diff().dropna(), lags=30)
+    st.pyplot(fig2.figure)
 
-# ARIMA Model
-model = ARIMA(train, order=(p, d, q))
-model_fit = model.fit()
+    st.subheader("Train/Test Forecast")
+    train = eth['Close'][:-30]
+    test = eth['Close'][-30:]
+    model = ARIMA(train, order=(1, 1, 1))
+    model_fit = model.fit()
+    forecast = model_fit.forecast(steps=30)
 
-forecast = model_fit.forecast(steps=forecast_days)
-rmse = np.sqrt(mean_squared_error(test, forecast))
-mape = mean_absolute_percentage_error(test, forecast) * 100
+    rmse = np.sqrt(mean_squared_error(test, forecast))
+    mape = mean_absolute_percentage_error(test, forecast) * 100
 
-st.subheader("Model Evaluation")
-st.write(f"**RMSE**: {rmse:.2f}")
-st.write(f"**MAPE**: {mape:.2f}%")
+    fig, ax = plt.subplots(figsize=(14, 5))
+    ax.plot(test.index, test, label='Actual')
+    ax.plot(test.index, forecast, label='Forecast', color='green')
+    ax.set_title('Actual vs Forecast')
+    ax.legend()
+    st.pyplot(fig)
 
-# Plot actual vs forecast
-st.subheader("Actual vs Forecast")
-fig4, ax5 = plt.subplots(figsize=(12, 5))
-ax5.plot(test.index, test, label="Actual")
-ax5.plot(test.index, forecast, label="Forecast")
-ax5.legend()
-st.pyplot(fig4)
+    st.write(f"**RMSE:** {rmse:.2f}")
+    st.write(f"**MAPE:** {mape:.2f}%")
 
-# Final Forecast
-st.subheader(f"Forecasting Next {forecast_days} Days")
-final_model = ARIMA(eth["Close"], order=(p, d, q)).fit()
-future_forecast = final_model.get_forecast(steps=forecast_days)
-forecast_df = future_forecast.summary_frame()
+    st.subheader("📅 Forecast Next 30 Days")
+    final_model = ARIMA(eth['Close'], order=(1, 1, 1)).fit()
+    forecast_next = final_model.get_forecast(steps=30)
+    forecast_df = forecast_next.summary_frame()
 
-fig5, ax6 = plt.subplots(figsize=(12, 5))
-ax6.plot(eth["Close"], label="Historical")
-ax6.plot(forecast_df["mean"], label="Forecast", color="green")
-ax6.fill_between(
-    forecast_df.index,
-    forecast_df["mean_ci_lower"],
-    forecast_df["mean_ci_upper"],
-    alpha=0.3,
-    color="green",
-)
-ax6.set_title("Ethereum Forecast")
-ax6.legend()
-st.pyplot(fig5)
+    fig, ax = plt.subplots(figsize=(14, 5))
+    eth['Close'].plot(ax=ax, label='Historical')
+    forecast_df['mean'].plot(ax=ax, label='Forecast', color='green')
+    ax.fill_between(forecast_df.index, forecast_df['mean_ci_lower'], forecast_df['mean_ci_upper'], color='green', alpha=0.2)
+    ax.legend()
+    ax.set_title('Ethereum Forecast for Next 30 Days')
+    st.pyplot(fig)
 
-st.success("✅ Forecast Complete")
+# Section 3: Model Summary
+elif show_section == "📃 Model Summary":
+    st.header("📃 ARIMA Model Summary")
+    model = ARIMA(eth['Close'], order=(1, 1, 1)).fit()
+    st.text(model.summary())
