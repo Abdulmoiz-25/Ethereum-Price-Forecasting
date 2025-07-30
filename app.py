@@ -67,8 +67,6 @@ if data.empty:
     st.error("Failed to load data. Please try again or check your internet connection.")
     st.stop()
 
-st.success(f"✅ Loaded {len(data)} data points from {start_date} to {end_date}")
-
 data["Close_diff"] = data["Close"].diff()
 data["Rolling_Mean"] = data["Close"].rolling(window=30).mean()
 
