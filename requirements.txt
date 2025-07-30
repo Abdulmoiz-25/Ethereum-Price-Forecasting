@@ -1,9 +1,9 @@
 streamlit
+yfinance
 pandas
 numpy
-yfinance
-prophet
-scikit-learn
 matplotlib
-tensorflow
+scikit-learn
 statsmodels
+prophet
+tensorflow
