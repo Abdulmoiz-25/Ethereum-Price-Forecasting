@@ -1,4 +1,4 @@
-tensorflow
+streamlit
 yfinance
 pandas
 numpy
@@ -6,6 +6,5 @@ matplotlib
 scikit-learn
 statsmodels
 fbprophet
-streamlit
-plotly
+tensorflow
 keras
