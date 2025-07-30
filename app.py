@@ -8,6 +8,7 @@ from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
 import warnings
+from datetime import date
 
 warnings.filterwarnings("ignore")
 
@@ -16,8 +17,11 @@ st.set_page_config(page_title="Ethereum ARIMA Forecast", layout="wide")
 # Sidebar navigation
 with st.sidebar:
     st.title("🔧 Settings")
-    start_date = st.date_input("Start Date", pd.to_datetime("2020-01-01"))
-    end_date = st.date_input("End Date", pd.to_datetime("2024-12-31"))
+
+    today = date.today()
+    start_date = st.date_input("Start Date", pd.to_datetime("2020-01-01"), max_value=today)
+    end_date = st.date_input("End Date", today, max_value=today)
+
     st.markdown("Model Order (ARIMA p, d, q)")
     p = st.slider("p (AR)", 0, 5, 1)
     d = st.slider("d (Diff)", 0, 2, 1)
