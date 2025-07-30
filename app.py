@@ -31,22 +31,43 @@ with st.sidebar:
 
 @st.cache_data
 def load_data(start, end):
-    df = yf.download("ETH-USD", start=start, end=end)
-    df = df[["Close"]].dropna()
-    df.index = pd.to_datetime(df.index)
-    df = df.asfreq("D").fillna(method="ffill")
-    return df
+    try:
+        # Convert dates to string format for yfinance
+        start_str = start.strftime('%Y-%m-%d')
+        end_str = end.strftime('%Y-%m-%d')
+        
+        # Download data with error handling
+        df = yf.download("ETH-USD", start=start_str, end=end_str, progress=False)
+        
+        if df.empty:
+            st.error(f"No data found for ETH-USD between {start_str} and {end_str}")
+            return pd.DataFrame()
+        
+        # Process the data
+        df = df[["Close"]].dropna()
+        df.index = pd.to_datetime(df.index)
+        df = df.asfreq("D").fillna(method="ffill")
+        
+        return df
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        return pd.DataFrame()
 
-data = load_data(start_date, end_date)
-
-# Data validation
-if len(data) < 50:
-    st.error(f"Not enough data points ({len(data)}). Please select a longer date range. Minimum 50 data points required.")
+# Validate date range
+if start_date >= end_date:
+    st.error("Start date must be before end date!")
     st.stop()
 
-if forecast_days >= len(data):
-    st.error(f"Forecast days ({forecast_days}) cannot be greater than or equal to available data points ({len(data)}). Please reduce forecast days.")
+# Load data
+with st.spinner("Loading Ethereum data..."):
+    data = load_data(start_date, end_date)
+
+# Check if data was loaded successfully
+if data.empty:
+    st.error("Failed to load data. Please try again or check your internet connection.")
     st.stop()
+
+st.success(f"✅ Loaded {len(data)} data points from {start_date} to {end_date}")
 
 data["Close_diff"] = data["Close"].diff()
 data["Rolling_Mean"] = data["Close"].rolling(window=30).mean()
@@ -72,34 +93,16 @@ def export_forecast(df):
 # ARIMA
 if model_choice == "ARIMA":
     p, d, q = 1, 1, 1
-    
-    # Ensure we have enough data for train/test split
-    min_train_size = max(50, forecast_days + 30)  # At least 50 points or forecast_days + 30
-    
-    if len(data) < min_train_size:
-        st.error(f"Not enough data for ARIMA model. Need at least {min_train_size} data points, but only have {len(data)}.")
-        st.stop()
-    
     train = data["Close"][:-forecast_days]
     test = data["Close"][-forecast_days:]
-    
-    # Additional validation
-    if len(train) < 30:
-        st.error(f"Training data too small ({len(train)} points). Please reduce forecast days or increase date range.")
-        st.stop()
-    
-    try:
-        model = ARIMA(train, order=(p, d, q)).fit()
-        forecast = model.forecast(steps=forecast_days)
-        rmse = np.sqrt(mean_squared_error(test, forecast))
-        mape = mean_absolute_percentage_error(test, forecast) * 100
-        final_model = ARIMA(data["Close"], order=(p, d, q)).fit()
-        future = final_model.get_forecast(steps=forecast_days)
-        forecast_df = future.summary_frame().reset_index()
-        forecast_df.rename(columns={"index": "Date", "mean": "Forecast"}, inplace=True)
-    except Exception as e:
-        st.error(f"ARIMA model failed to fit. Try adjusting the date range or forecast days. Error: {str(e)}")
-        st.stop()
+    model = ARIMA(train, order=(p, d, q)).fit()
+    forecast = model.forecast(steps=forecast_days)
+    rmse = np.sqrt(mean_squared_error(test, forecast))
+    mape = mean_absolute_percentage_error(test, forecast) * 100
+    final_model = ARIMA(data["Close"], order=(p, d, q)).fit()
+    future = final_model.get_forecast(steps=forecast_days)
+    forecast_df = future.summary_frame().reset_index()
+    forecast_df.rename(columns={"index": "Date", "mean": "Forecast"}, inplace=True)
 
     if section == "Forecast":
         st.title("ARIMA Forecast")
@@ -165,11 +168,6 @@ elif model_choice == "Prophet":
 
 # LSTM
 elif model_choice == "LSTM":
-    # LSTM needs at least 60 data points for the lookback window
-    if len(data) < 120:  # 60 for lookback + some for training
-        st.error(f"Not enough data for LSTM model. Need at least 120 data points, but only have {len(data)}.")
-        st.stop()
-    
     scaler = MinMaxScaler()
     scaled = scaler.fit_transform(data[["Close"]])
     X, y = [], []
@@ -177,11 +175,6 @@ elif model_choice == "LSTM":
         X.append(scaled[i - 60:i, 0])
         y.append(scaled[i, 0])
     X, y = np.array(X), np.array(y)
-    
-    if len(X) == 0:
-        st.error("Not enough data to create training sequences for LSTM. Please increase the date range.")
-        st.stop()
-    
     X = X.reshape((X.shape[0], X.shape[1], 1))
 
     model = Sequential()
